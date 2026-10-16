@@ -1,56 +1,78 @@
-import { useFonts } from 'expo-font';
-import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
-import * as SplashScreen from 'expo-splash-screen';
-import { useEffect } from 'react';
+import 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
-import { useColorScheme } from '@/components/useColorScheme';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { useFonts } from 'expo-font';
+import { Stack } from 'expo-router';
+import * as SplashScreen from 'expo-splash-screen';
+import { StatusBar } from 'expo-status-bar';
+import { useEffect } from 'react';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-export {
-  // Catch any errors thrown by the Layout component.
-  ErrorBoundary,
-} from 'expo-router';
+import AppHeader from '../components/AppHeader';
+import { AuthProvider, useAuth } from '../src/context/AuthContext';
 
-export const unstable_settings = {
-  // Ensure that reloading on `/modal` keeps a back button present.
-  initialRouteName: '(tabs)',
-};
-
-// Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: { retry: 1, staleTime: 30_000, refetchOnWindowFocus: false },
+  },
+});
+
+export { ErrorBoundary } from 'expo-router';
 
 export default function RootLayout() {
   const [loaded, error] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
   });
 
-  // Expo Router uses Error Boundaries to catch errors in the navigation tree.
   useEffect(() => {
     if (error) throw error;
   }, [error]);
 
-  useEffect(() => {
-    if (loaded) {
-      SplashScreen.hideAsync();
-    }
-  }, [loaded]);
-
-  if (!loaded) {
-    return null;
-  }
-
-  return <RootLayoutNav />;
-}
-
-function RootLayoutNav() {
-  const colorScheme = useColorScheme();
+  if (!loaded) return null;
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
-      </Stack>
-    </ThemeProvider>
+    <QueryClientProvider client={queryClient}>
+      <SafeAreaProvider>
+        <AuthProvider>
+          <StatusBar style="light" />
+          <RootNavigator onReady={() => SplashScreen.hideAsync()} />
+        </AuthProvider>
+      </SafeAreaProvider>
+    </QueryClientProvider>
+  );
+}
+
+function RootNavigator({ onReady }: { onReady: () => void }) {
+  const { hydrated } = useAuth();
+
+  useEffect(() => {
+    if (hydrated) onReady();
+  }, [hydrated, onReady]);
+
+  if (!hydrated) return null;
+
+  return (
+    <Stack
+      screenOptions={{
+        headerShown: true,
+        header: (props) => <AppHeader {...props} />,
+        contentStyle: { backgroundColor: '#0B0B0B' },
+        animation: 'slide_from_right',
+      }}
+    >
+      <Stack.Screen name="index" />
+      <Stack.Screen name="login" options={{ headerShown: false }} />
+      <Stack.Screen name="register" options={{ headerShown: false }} />
+      <Stack.Screen name="dashboard" options={{ title: 'Dashboard' }} />
+      <Stack.Screen name="newtransaction" options={{ title: 'Nueva transacción' }} />
+      <Stack.Screen name="transactionlist" options={{ title: 'Transacciones' }} />
+      <Stack.Screen name="cash" options={{ title: 'Caja' }} />
+      <Stack.Screen name="news" options={{ title: 'Noticias' }} />
+      <Stack.Screen name="users" options={{ title: 'Usuarios' }} />
+      <Stack.Screen name="profile" options={{ title: 'Perfil' }} />
+    </Stack>
   );
 }
